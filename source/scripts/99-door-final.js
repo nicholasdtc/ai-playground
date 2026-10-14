@@ -23,7 +23,22 @@ function help(){
   note:'The foyer is intentionally incomplete. Use actions where you stand; ask rooms only when you want the full catalog.'
  };
 }
-async function run(raw){if(low(raw)==='help')return help();return run0(raw)}
+// Explicit asks only: the foyer stays small, but "help <topic>" searches the full command catalog, "action ids" lists just the ids, and
+// "call me" says plainly what a name is.
+function helpTopic(topic){
+ const all=[...new Set(help0()?.catalog||help0()?.commands||[])],t=topic.replace(/^(on|about|for)\s+/,'').trim(),stem=t.length>4?t.replace(/(ing|ed|es|s)$/,''):t,hits=all.filter(c=>low(c).includes(t)||low(c).includes(stem));
+ return hits.length?{ok:true,schema:'REALITI_HELP_TOPIC_V1',topic:t,commands:hits,text:`${hits.length} command${hits.length>1?'s':''} mention${hits.length>1?'':'s'} "${t}": ${hits.join(' | ')}`}
+  :{ok:true,schema:'REALITI_HELP_TOPIC_V1',topic:t,commands:[],text:`No command mentions "${t}". Try actions where you stand, or rooms for the full catalog.`};
+}
+async function run(raw){
+ const l=low(raw);
+ if(l==='help')return help();
+ let m;if((m=/^help\s+(.+)$/.exec(l)))return helpTopic(m[1]);
+ if(l==='action ids'||l==='actions ids'||l==='action list'){const r=await run0('actions'),ids=(r?.actions||[]).map(a=>a.id);return {ok:r?.ok!==false,schema:'REALITI_ACTION_IDS_V1',room:r?.room||null,ids,text:ids.length?ids.join(', '):'No actions listed here.'}}
+ const out=await run0(raw);
+ if(/^(?:call me|name me|i am)\s+\S/.test(l)&&out&&out.ok!==false&&typeof out.text==='string')return {...out,text:`${out.text} Your id stays the same; the name is a label others see, and the ledger keeps every earlier name.`};
+ return out;
+}
 D0.help=help;D0.run=run;
 window.Realiti=Object.freeze({...A0,help,run});
 window.REALITI_DOOR_CURATOR_V1=Object.freeze({version:'1.0',help});
